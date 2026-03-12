@@ -87,7 +87,6 @@ func filterTIFFIFDs(tiffData []byte, bo binary.ByteOrder) ([]byte, error) {
 	// Filter entries
 	keptEntries := make([][]byte, 0)
 	dataSegments := make([][]byte, 0)
-	currentDataOffset := uint32(entriesEnd + 4) // After nextIFD pointer
 
 	for i := 0; i < int(entryCount); i++ {
 		entryOffset := entriesStart + i*12
@@ -116,13 +115,10 @@ func filterTIFFIFDs(tiffData []byte, bo binary.ByteOrder) ([]byte, error) {
 				externalData := tiffData[dataOffset : dataOffset+dataSize]
 				dataSegments = append(dataSegments, externalData)
 				
-				// Update entry to point to new offset
+				// Keep entry as-is for now, will update offsets later
 				newEntry := make([]byte, 12)
 				copy(newEntry, entry)
-				bo.PutUint32(newEntry[8:12], currentDataOffset)
 				keptEntries = append(keptEntries, newEntry)
-				
-				currentDataOffset += dataSize
 			}
 		} else {
 			// Data fits in entry, keep as-is
@@ -133,6 +129,25 @@ func filterTIFFIFDs(tiffData []byte, bo binary.ByteOrder) ([]byte, error) {
 	// If no entries remain, return empty
 	if len(keptEntries) == 0 {
 		return nil, nil
+	}
+
+	// Calculate data offset based on NEW structure size
+	// TIFF header (8) + entry count (2) + entries (12 * N) + nextIFD (4)
+	currentDataOffset := uint32(8 + 2 + len(keptEntries)*12 + 4)
+	
+	// Update entries with correct data offsets
+	for i, entry := range keptEntries {
+		tagType := bo.Uint16(entry[2:4])
+		count := bo.Uint32(entry[4:8])
+		typeSize := getTagTypeSize(tagType)
+		dataSize := count * uint32(typeSize)
+		
+		if dataSize > 4 {
+			// This entry has external data, update offset
+			bo.PutUint32(entry[8:12], currentDataOffset)
+			currentDataOffset += dataSize
+		}
+		keptEntries[i] = entry
 	}
 
 	// Rebuild TIFF structure

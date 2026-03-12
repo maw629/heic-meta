@@ -166,9 +166,19 @@ func (h *HEICHandler) RemoveMetadata(inputPath, outputPath string, options Optio
 		}
 	}()
 
-	// Find iinf and iloc boxes
-	iinfNode := FindBoxInTree(tree.Root[0], "iinf")
-	ilocNode := FindBoxInTree(tree.Root[0], "iloc")
+	// Find iinf and iloc boxes (search all root boxes)
+	var iinfNode, ilocNode *BoxNode
+	for _, root := range tree.Root {
+		if iinfNode == nil {
+			iinfNode = FindBoxInTree(root, "iinf")
+		}
+		if ilocNode == nil {
+			ilocNode = FindBoxInTree(root, "iloc")
+		}
+		if iinfNode != nil && ilocNode != nil {
+			break
+		}
+	}
 
 	// If no iinf or iloc, fall back to direct box filtering
 	if iinfNode == nil || ilocNode == nil {
@@ -235,8 +245,14 @@ func (h *HEICHandler) RemoveMetadata(inputPath, outputPath string, options Optio
 	// Step 6: Set up box replacements and recalculate sizes
 	modifier := NewBoxTreeModifier()
 	
-	// Find and replace idat
-	idatNode := FindBoxInTree(tree.Root[0], "idat")
+	// Find and replace idat (search all root boxes)
+	var idatNode *BoxNode
+	for _, root := range tree.Root {
+		idatNode = FindBoxInTree(root, "idat")
+		if idatNode != nil {
+			break
+		}
+	}
 	if idatNode != nil {
 		modifier.ReplaceBox(idatNode, newIdatPayload)
 	}
@@ -247,8 +263,19 @@ func (h *HEICHandler) RemoveMetadata(inputPath, outputPath string, options Optio
 	// Replace iloc with updated item locations
 	modifier.ReplaceBox(ilocNode, newIlocPayload)
 
-	// Recalculate all box sizes with modifications
-	modifier.RecalculateSizes(tree.Root[0])
+	// Recalculate sizes for all root boxes that were modified
+	// This ensures all parent boxes have correct sizes
+	modified := make(map[*BoxNode]bool)
+	modified[iinfNode] = true
+	modified[ilocNode] = true
+	if idatNode != nil {
+		modified[idatNode] = true
+	}
+	
+	// Find all ancestor boxes and recalculate their sizes
+	for _, root := range tree.Root {
+		modifier.RecalculateSizes(root)
+	}
 
 	// Step 7: Write modified file
 	writer := &FileWriter{

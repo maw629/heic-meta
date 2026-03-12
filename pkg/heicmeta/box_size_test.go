@@ -39,8 +39,9 @@ func TestBoxSizeCalculator_SimpleTree(t *testing.T) {
 		t.Errorf("child2 size: expected 200, got %d", size)
 	}
 	
-	// Check root size: header(8) + child1(100) + child2(200) = 308
-	expectedRootSize := uint64(8 + 100 + 200)
+	// Check root size: header(8) + version+flags(4) + child1(100) + child2(200) = 312
+	// meta is a FullBox container, so it includes version+flags in payload
+	expectedRootSize := uint64(8 + 4 + 100 + 200)
 	if size := newSizes[root]; size != expectedRootSize {
 		t.Errorf("root size: expected %d, got %d", expectedRootSize, size)
 	}
@@ -83,8 +84,8 @@ func TestBoxSizeCalculator_WithOverride(t *testing.T) {
 		t.Errorf("child2 size: expected 200, got %d", size)
 	}
 	
-	// root should be: header(8) + child1(50) + child2(200) = 258
-	expectedRootSize := uint64(8 + 50 + 200)
+	// root should be: header(8) + version+flags(4) + child1(50) + child2(200) = 262
+	expectedRootSize := uint64(8 + 4 + 50 + 200)
 	if size := newSizes[root]; size != expectedRootSize {
 		t.Errorf("root size: expected %d, got %d", expectedRootSize, size)
 	}
@@ -167,9 +168,10 @@ func TestBoxTreeModifier_ReplaceBox(t *testing.T) {
 		t.Errorf("child size: expected 58, got %d", size)
 	}
 	
-	// root should be: header(8) + child(58) = 66
-	if size := newSizes[root]; size != 66 {
-		t.Errorf("root size: expected 66, got %d", size)
+	// root should be: header(8) + version+flags(4) + child(58) = 70
+	// meta is a FullBox, so it includes version+flags
+	if size := newSizes[root]; size != 70 {
+		t.Errorf("root size: expected 70, got %d", size)
 	}
 }
 
@@ -322,14 +324,15 @@ func TestBoxSizeCalculator_RealScenario(t *testing.T) {
 		t.Errorf("idat: expected 4500, got %d", newSizes[idat])
 	}
 	
-	// Check meta: header(8) + iinf(100) + iloc(150) + idat(4500) = 4758
-	expectedMeta := uint64(8 + 100 + 150 + 4500)
+	// Check meta: header(8) + version+flags(4) + iinf(100) + iloc(150) + idat(4500) = 4762
+	// meta is a FullBox container
+	expectedMeta := uint64(8 + 4 + 100 + 150 + 4500)
 	if newSizes[meta] != expectedMeta {
 		t.Errorf("meta: expected %d, got %d", expectedMeta, newSizes[meta])
 	}
 	
-	// Check moov: header(8) + meta(4758) = 4766
-	expectedMoov := uint64(8 + 4758)
+	// Check moov: header(8) + meta(4762) = 4770
+	expectedMoov := uint64(8 + 4762)
 	if newSizes[moov] != expectedMoov {
 		t.Errorf("moov: expected %d, got %d", expectedMoov, newSizes[moov])
 	}

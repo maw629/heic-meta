@@ -50,15 +50,15 @@ func (c *BoxSizeCalculator) CalculateSize(node *BoxNode) uint64 {
 	if headerSize == 0 {
 		// Estimate: most boxes have 8-byte header
 		headerSize = 8
-		
-		// FullBox containers have version+flags (4 extra bytes in payload)
-		if isFullBoxContainerType(node.Type) {
-			// version+flags is part of payload, not header
-			// headerSize stays 8
-		}
 	}
 	
-	totalSize := headerSize + childrenSize
+	// For FullBox containers, add version+flags to payload
+	totalPayload := childrenSize
+	if isFullBoxContainerType(node.Type) {
+		totalPayload += 4 // version(1) + flags(3)
+	}
+	
+	totalSize := headerSize + totalPayload
 	
 	return totalSize
 }
@@ -96,7 +96,13 @@ func (c *BoxSizeCalculator) recalculateRecursive(node *BoxNode, result map[*BoxN
 		headerSize = 8 // Default
 	}
 	
-	totalSize := headerSize + childrenSize
+	// For FullBox containers, add version+flags to payload
+	totalPayload := childrenSize
+	if isFullBoxContainerType(node.Type) {
+		totalPayload += 4 // version(1) + flags(3)
+	}
+	
+	totalSize := headerSize + totalPayload
 	result[node] = totalSize
 	
 	return totalSize

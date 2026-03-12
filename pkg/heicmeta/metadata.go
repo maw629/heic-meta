@@ -138,9 +138,7 @@ func (h *HEICHandler) ExtractMetadata(path string) (Metadata, error) {
 }
 
 func (h *HEICHandler) RemoveMetadata(inputPath, outputPath string, options Options) error {
-	// For Step 3 core implementation:
-	// Copy the file and filter only direct metadata boxes (Exif, mime in ipco)
-	// Item-based removal and full reconstruction will be in Step 4
+	// Step 4: Complete implementation with item-based metadata removal
 	
 	// Parse to understand structure
 	tree, err := ParseFile(inputPath)
@@ -148,30 +146,135 @@ func (h *HEICHandler) RemoveMetadata(inputPath, outputPath string, options Optio
 		return fmt.Errorf("failed to parse input: %w", err)
 	}
 
-	// Open for reading metadata
+	// Open input file for reading
 	inFile, err := os.Open(inputPath)
 	if err != nil {
 		return fmt.Errorf("failed to open input: %w", err)
 	}
 	defer inFile.Close()
 
-	// For Step 3 core: Simple approach - copy with filtered metadata
-	// Full reconstruction in Step 4
+	// Create output file
 	outFile, err := os.Create(outputPath)
 	if err != nil {
 		return fmt.Errorf("failed to create output: %w", err)
 	}
-	defer outFile.Close()
+	defer func() {
+		outFile.Close()
+		// Remove output file if there was an error
+		if err != nil {
+			os.Remove(outputPath)
+		}
+	}()
 
+	// Find iinf and iloc boxes
+	iinfNode := FindBoxInTree(tree.Root[0], "iinf")
+	ilocNode := FindBoxInTree(tree.Root[0], "iloc")
+
+	// If no iinf or iloc, fall back to direct box filtering
+	if iinfNode == nil || ilocNode == nil {
+		return h.removeMetadataDirectBoxes(tree, inFile, outFile, options)
+	}
+
+	// Step 1: Parse item information
+	items, err := ParseItemInfo(inFile, iinfNode)
+	if err != nil {
+		return fmt.Errorf("failed to parse item info: %w", err)
+	}
+
+	locations, err := ParseItemLocation(inFile, ilocNode)
+	if err != nil {
+		return fmt.Errorf("failed to parse item location: %w", err)
+	}
+
+	// Step 2: Read all item data
+	itemData := make(map[uint32][]byte)
+	for _, item := range items {
+		// Find location for this item
+		var itemLoc *ItemLocation
+		for i := range locations {
+			if locations[i].ItemID == item.ItemID {
+				itemLoc = &locations[i]
+				break
+			}
+		}
+		if itemLoc == nil {
+			continue
+		}
+
+		data, err := ReadItemData(inFile, tree, *itemLoc)
+		if err != nil {
+			// Item may not have data (e.g., not metadata)
+			continue
+		}
+		itemData[item.ItemID] = data
+	}
+
+	// Step 3: Filter items
+	modifications, err := FilterItems(items, itemData)
+	if err != nil {
+		return fmt.Errorf("failed to filter items: %w", err)
+	}
+
+	// Step 4: Build filtered idat with new offsets
+	newIdatPayload, newOffsets, err := BuildFilteredIdat(inFile, tree, items, locations, modifications)
+	if err != nil {
+		return fmt.Errorf("failed to build filtered idat: %w", err)
+	}
+
+	// Step 5: Rebuild iinf and iloc boxes
+	newIinfPayload, err := RebuildIinfBox(items, modifications)
+	if err != nil {
+		return fmt.Errorf("failed to rebuild iinf: %w", err)
+	}
+
+	newIlocPayload, err := RebuildIlocBox(locations, modifications, newOffsets)
+	if err != nil {
+		return fmt.Errorf("failed to rebuild iloc: %w", err)
+	}
+
+	// Step 6: Set up box replacements and recalculate sizes
+	modifier := NewBoxTreeModifier()
+	
+	// Find and replace idat
+	idatNode := FindBoxInTree(tree.Root[0], "idat")
+	if idatNode != nil {
+		modifier.ReplaceBox(idatNode, newIdatPayload)
+	}
+	
+	// Replace iinf with updated item info
+	modifier.ReplaceBox(iinfNode, newIinfPayload)
+	
+	// Replace iloc with updated item locations
+	modifier.ReplaceBox(ilocNode, newIlocPayload)
+
+	// Recalculate all box sizes with modifications
+	modifier.RecalculateSizes(tree.Root[0])
+
+	// Step 7: Write modified file
+	writer := &FileWriter{
+		input:    inFile,
+		output:   outFile,
+		modifier: modifier,
+	}
+
+	if err = writer.WriteTree(tree); err != nil {
+		return fmt.Errorf("failed to write output: %w", err)
+	}
+
+	return nil
+}
+
+// removeMetadataDirectBoxes handles files without item-based metadata
+// (legacy format or files with only direct Exif/mime boxes)
+func (h *HEICHandler) removeMetadataDirectBoxes(tree *BoxTree, inFile *os.File, outFile *os.File, options Options) error {
 	// Process boxes
 	for _, box := range tree.Root {
 		if err := h.copyBoxWithFilter(box, inFile, outFile, options); err != nil {
 			outFile.Close()
-			os.Remove(outputPath)
+			os.Remove(outFile.Name())
 			return fmt.Errorf("failed to process: %w", err)
 		}
 	}
-
 	return nil
 }
 

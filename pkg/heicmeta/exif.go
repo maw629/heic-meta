@@ -38,6 +38,10 @@ var sensitiveExifTagNames = map[uint16]string{
 	0xA433: "LensMake",
 	0xA434: "LensModel",
 	0xA435: "LensSerialNumber",
+	
+	// Sub-IFD pointers (remove entire sub-IFDs if they point to sensitive data)
+	0x8769: "ExifIFDPointer",   // Points to Exif sub-IFD (contains DateTimeOriginal, etc.)
+	0x8825: "GPSIFDPointer",    // Points to GPS sub-IFD (all GPS data is sensitive)
 }
 
 // DetectSensitiveEXIFTagsFromHEICPayload detects sensitive EXIF tags from HEIC Exif box payload.

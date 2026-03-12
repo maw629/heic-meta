@@ -23,6 +23,11 @@ var containerTypes = map[mp4.BoxType]struct{}{
 	mp4.StrToBoxType("iref"): {},
 }
 
+var fullBoxContainerTypes = map[mp4.BoxType]struct{}{
+	mp4.BoxTypeMeta():        {},
+	mp4.StrToBoxType("iref"): {},
+}
+
 // BoxNode represents one ISO BMFF box in a parsed tree.
 type BoxNode struct {
 	Type        mp4.BoxType
@@ -126,10 +131,9 @@ func parseRange(r io.ReadSeeker, start, end uint64, tree *BoxTree) ([]*BoxNode, 
 
 		if isContainerType(bi.Type) {
 			childStart := bi.Offset + bi.HeaderSize
-			// 'meta' is a FullBox; child boxes start after version/flags (4 bytes).
-			if bi.Type == mp4.BoxTypeMeta() {
+			if isFullBoxContainerType(bi.Type) {
 				if bi.Size < bi.HeaderSize+4 {
-					return nil, fmt.Errorf("invalid meta box size at offset %d", bi.Offset)
+					return nil, fmt.Errorf("invalid fullbox container size at offset %d", bi.Offset)
 				}
 				childStart += 4
 			}
@@ -153,6 +157,11 @@ func parseRange(r io.ReadSeeker, start, end uint64, tree *BoxTree) ([]*BoxNode, 
 
 func isContainerType(boxType mp4.BoxType) bool {
 	_, ok := containerTypes[boxType]
+	return ok
+}
+
+func isFullBoxContainerType(boxType mp4.BoxType) bool {
+	_, ok := fullBoxContainerTypes[boxType]
 	return ok
 }
 

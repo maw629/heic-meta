@@ -55,6 +55,11 @@ func (w *FileWriter) Close() error {
 
 // WriteTree writes the entire box tree to output.
 func (w *FileWriter) WriteTree(tree *BoxTree) error {
+	// Initialize newSizes map if not already done
+	if w.newSizes == nil {
+		w.newSizes = make(map[*BoxNode]uint64)
+	}
+
 	// Calculate all new sizes first
 	for _, root := range tree.Root {
 		sizes := w.modifier.RecalculateSizes(root)

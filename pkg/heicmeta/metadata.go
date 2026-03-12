@@ -1,7 +1,9 @@
 package heicmeta
 
 import (
+	"encoding/binary"
 	"errors"
+	"fmt"
 	"os"
 	"sort"
 
@@ -136,7 +138,149 @@ func (h *HEICHandler) ExtractMetadata(path string) (Metadata, error) {
 }
 
 func (h *HEICHandler) RemoveMetadata(inputPath, outputPath string, options Options) error {
-	return ErrNotImplemented
+	// For Step 3 core implementation:
+	// Copy the file and filter only direct metadata boxes (Exif, mime in ipco)
+	// Item-based removal and full reconstruction will be in Step 4
+	
+	// Parse to understand structure
+	tree, err := ParseFile(inputPath)
+	if err != nil {
+		return fmt.Errorf("failed to parse input: %w", err)
+	}
+
+	// Open for reading metadata
+	inFile, err := os.Open(inputPath)
+	if err != nil {
+		return fmt.Errorf("failed to open input: %w", err)
+	}
+	defer inFile.Close()
+
+	// For Step 3 core: Simple approach - copy with filtered metadata
+	// Full reconstruction in Step 4
+	outFile, err := os.Create(outputPath)
+	if err != nil {
+		return fmt.Errorf("failed to create output: %w", err)
+	}
+	defer outFile.Close()
+
+	// Process boxes
+	for _, box := range tree.Root {
+		if err := h.copyBoxWithFilter(box, inFile, outFile, options); err != nil {
+			outFile.Close()
+			os.Remove(outputPath)
+			return fmt.Errorf("failed to process: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (h *HEICHandler) copyBoxWithFilter(box *BoxNode, inFile *os.File, outFile *os.File, options Options) error {
+	boxType := box.TypeString()
+
+	// Special handling for metadata boxes
+	if boxType == "Exif" {
+		return h.processExifBox(box, inFile, outFile, options)
+	}
+
+	if boxType == "mime" {
+		return h.processMimeBox(box, inFile, outFile, options)
+	}
+
+	// For all other boxes (including containers), copy as-is
+	// This preserves the structure and mdat pixel data
+	boxData, err := ReadBoxBytes(inFile, box)
+	if err != nil {
+		return fmt.Errorf("failed to read box %s: %w", boxType, err)
+	}
+
+	if _, err := outFile.Write(boxData); err != nil {
+		return fmt.Errorf("failed to write box %s: %w", boxType, err)
+	}
+
+	return nil
+}
+
+func (h *HEICHandler) processExifBox(box *BoxNode, inFile *os.File, outFile *os.File, options Options) error {
+	payload, err := ReadBoxPayloadBytes(inFile, box)
+	if err != nil {
+		return err
+	}
+
+	// Filter sensitive EXIF tags
+	filteredPayload, err := FilterSensitiveEXIF(payload)
+	if err != nil {
+		// If filtering fails, skip the box entirely
+		return nil
+	}
+
+	// If all tags were sensitive, skip the box
+	if filteredPayload == nil {
+		return nil
+	}
+
+	// Write box with filtered payload
+	return h.writeBox(box.Type, filteredPayload, outFile)
+}
+
+func (h *HEICHandler) processMimeBox(box *BoxNode, inFile *os.File, outFile *os.File, options Options) error {
+	payload, err := ReadBoxPayloadBytes(inFile, box)
+	if err != nil {
+		return err
+	}
+
+	// Check if it's XMP
+	_, isXMP, err := DetectSensitiveXMPFields(payload)
+	if err != nil || !isXMP {
+		// Not XMP or error, copy as-is
+		boxData, err := ReadBoxBytes(inFile, box)
+		if err != nil {
+			return err
+		}
+		_, err = outFile.Write(boxData)
+		return err
+	}
+
+	// Filter sensitive XMP
+	filteredPayload, err := FilterSensitiveXMP(payload)
+	if err != nil {
+		// If filtering fails, skip the box
+		return nil
+	}
+
+	// If all data was sensitive, skip the box
+	if filteredPayload == nil {
+		return nil
+	}
+
+	// Write box with filtered payload
+	return h.writeBox(box.Type, filteredPayload, outFile)
+}
+
+
+func (h *HEICHandler) writeBox(boxType mp4.BoxType, payload []byte, outFile *os.File) error {
+	// Calculate size: 8 bytes header + payload length
+	size := uint32(8 + len(payload))
+	
+	// Write size
+	sizeBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(sizeBytes, size)
+	if _, err := outFile.Write(sizeBytes); err != nil {
+		return err
+	}
+	
+	// Write type
+	typeBytes := []byte(boxType.String())
+	if _, err := outFile.Write(typeBytes); err != nil {
+		return err
+	}
+	
+	// Write payload
+	if _, err := outFile.Write(payload); err != nil {
+		return err
+	}
+	
+	return nil
 }
 
 func ExtractMetadata(path string) (Metadata, error) {

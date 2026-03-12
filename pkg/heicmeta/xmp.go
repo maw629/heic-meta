@@ -12,9 +12,7 @@ var xmpSensitiveKeywords = []string{
 	"latitude",
 	"longitude",
 	"location",
-	"datetime",
-	"date",
-	"time",
+	"datetimeoriginal", // specific datetime, not just "date"
 	"creator",
 	"author",
 	"artist",

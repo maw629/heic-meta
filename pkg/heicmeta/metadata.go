@@ -52,6 +52,7 @@ func (h *HEICHandler) ExtractMetadata(path string) (Metadata, error) {
 
 	metadata := Metadata{}
 
+	// Check for direct Exif/mime boxes in ipco
 	exifNodes := findBoxesByType(tree.Root, mp4.StrToBoxType("Exif"))
 	metadata.EXIFBoxes = len(exifNodes)
 	metadata.EXIFPresent = len(exifNodes) > 0
@@ -70,7 +71,6 @@ func (h *HEICHandler) ExtractMetadata(path string) (Metadata, error) {
 			exifSet[tag] = struct{}{}
 		}
 	}
-	metadata.EXIFSensitiveTags = sortedKeys(exifSet)
 
 	xmpNodes := findBoxesByType(tree.Root, mp4.StrToBoxType("mime"))
 	xmpSet := make(map[string]struct{})
@@ -91,6 +91,35 @@ func (h *HEICHandler) ExtractMetadata(path string) (Metadata, error) {
 			xmpSet[field] = struct{}{}
 		}
 	}
+
+	// Check for item-based metadata (iinf/iloc/idat)
+	exifItems, xmpItems, err := ExtractItemBasedMetadata(path, tree)
+	if err == nil {
+		for _, itemData := range exifItems {
+			tags, err := DetectSensitiveEXIFTagsFromHEICPayload(itemData)
+			if err == nil {
+				for _, tag := range tags {
+					exifSet[tag] = struct{}{}
+				}
+			}
+		}
+		metadata.EXIFBoxes += len(exifItems)
+		if len(exifItems) > 0 {
+			metadata.EXIFPresent = true
+		}
+
+		for _, itemData := range xmpItems {
+			fields, isXMP, err := DetectSensitiveXMPFields(itemData)
+			if err == nil && isXMP {
+				for _, field := range fields {
+					xmpSet[field] = struct{}{}
+				}
+				metadata.XMPBoxes++
+			}
+		}
+	}
+
+	metadata.EXIFSensitiveTags = sortedKeys(exifSet)
 	metadata.XMPSensitiveFields = sortedKeys(xmpSet)
 	metadata.XMPPresent = metadata.XMPBoxes > 0
 

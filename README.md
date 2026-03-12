@@ -14,6 +14,8 @@ Step 2 (Metadata Detection) is implemented:
 - `ExtractMetadata` / `PreviewMetadata` now detect EXIF and XMP metadata
 - HEIC EXIF 4-byte prefix handling with TIFF IFD traversal
 - Sensitive EXIF/XMP field detection summary
+- Item-based metadata extraction (iinf/iloc/idat) for real iPhone photos
+- Tested with actual public HEIC samples from GitHub
 
 ## Quick example
 

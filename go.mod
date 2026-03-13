@@ -1,4 +1,4 @@
-module github.com/yourname/heic-meta
+module github.com/maw629/heic-meta
 
 go 1.22.2
 

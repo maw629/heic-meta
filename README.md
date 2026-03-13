@@ -36,3 +36,18 @@ if err != nil {
 }
 fmt.Println(md.EXIFPresent, md.XMPPresent, md.SensitiveTags)
 ```
+
+## Testing with Nokia HEIF Conformance Files
+
+The library has been validated against Nokia's official HEIF conformance test suite:
+
+```bash
+# Clone Nokia conformance files
+git clone https://github.com/nokiatech/heif_conformance.git /tmp/heif-conformance
+
+# Run validation tests
+cd pkg/heicmeta
+go test -v -run TestNokiaConformance
+```
+
+**Results**: 100% parse success rate on all 63 conformance files. See [NOKIA_VALIDATION_RESULTS.md](NOKIA_VALIDATION_RESULTS.md) for details.

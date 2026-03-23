@@ -19,18 +19,18 @@ func TestFilterSensitiveXMP(t *testing.T) {
 </rdf:Description>
 </rdf:RDF>
 </x:xmpmeta>`
-	
+
 	// Filter
 	filtered, err := FilterSensitiveXMP([]byte(xmpXML))
 	if err != nil {
 		t.Fatalf("FilterSensitiveXMP failed: %v", err)
 	}
-	
+
 	// Should not be nil (CreateDate should remain)
 	if filtered == nil {
 		t.Error("Expected some data to remain (CreateDate)")
 	}
-	
+
 	// Check that sensitive fields are gone
 	filteredStr := string(filtered)
 	if strings.Contains(filteredStr, "Make") || strings.Contains(filteredStr, "Canon") {
@@ -39,7 +39,7 @@ func TestFilterSensitiveXMP(t *testing.T) {
 	if strings.Contains(filteredStr, "GPS") {
 		t.Error("GPS field should be removed")
 	}
-	
+
 	// Check that non-sensitive field remains
 	if !strings.Contains(filteredStr, "CreateDate") {
 		t.Error("Non-sensitive field 'CreateDate' should remain")
@@ -58,13 +58,13 @@ func TestFilterSensitiveXMPAllSensitive(t *testing.T) {
 </rdf:Description>
 </rdf:RDF>
 </x:xmpmeta>`
-	
+
 	// Filter
 	filtered, err := FilterSensitiveXMP([]byte(xmpXML))
 	if err != nil {
 		t.Fatalf("FilterSensitiveXMP failed: %v", err)
 	}
-	
+
 	// Should be nil (all fields were sensitive, only structure remains)
 	// The check in the filter looks for < 5 tags or < 150 bytes
 	if filtered != nil {
@@ -75,15 +75,15 @@ func TestFilterSensitiveXMPAllSensitive(t *testing.T) {
 func TestFilterSensitiveXMPInvalid(t *testing.T) {
 	// Invalid XML
 	xmpXML := []byte("not xml")
-	
+
 	// Filter
 	filtered, err := FilterSensitiveXMP(xmpXML)
-	
+
 	// Should return error for invalid data
 	if err == nil {
 		t.Error("Expected error for invalid XML")
 	}
-	
+
 	// Should return nil
 	if filtered != nil {
 		t.Error("Expected nil for invalid XML")

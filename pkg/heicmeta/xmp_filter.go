@@ -39,7 +39,7 @@ func FilterSensitiveXMP(payload []byte) ([]byte, error) {
 		case xml.StartElement:
 			// Check if this element or its attributes contain sensitive data
 			isSensitive := isXMPElementSensitive(t)
-			
+
 			if isSensitive {
 				// Start skipping
 				if skipDepth == 0 {
@@ -105,13 +105,13 @@ func FilterSensitiveXMP(payload []byte) ([]byte, error) {
 	}
 
 	filteredXML := buf.Bytes()
-	
+
 	// Check if anything meaningful remains (just the XML envelope is ~50-600 bytes depending on namespaces)
 	// Count actual data elements (not just structure)
 	// If we have very few elements, it's likely just the structure
 	tagCount := bytes.Count(filteredXML, []byte("<"))
 	closingTagCount := bytes.Count(filteredXML, []byte("</"))
-	
+
 	// If we have <= 7 tags total and few data elements, return nil
 	// (7 = proc instr + 3 structure elements * 2 for open/close + a bit extra)
 	if tagCount <= 7 || (closingTagCount >= 3 && tagCount-closingTagCount <= 4) {
@@ -135,7 +135,7 @@ func isXMPElementSensitive(elem xml.StartElement) bool {
 			}
 		}
 	}
-	
+
 	// Check element name (e.g., GPS fields)
 	localName := strings.ToLower(elem.Name.Local)
 	for _, keyword := range xmpSensitiveKeywords {
@@ -150,10 +150,10 @@ func isXMPElementSensitive(elem xml.StartElement) bool {
 		if attr.Name.Space == "xmlns" || attr.Name.Local == "xmlns" || strings.HasPrefix(attr.Name.Local, "xmlns:") {
 			continue
 		}
-		
+
 		attrName := strings.ToLower(attr.Name.Local)
 		attrValue := strings.ToLower(attr.Value)
-		
+
 		for _, keyword := range xmpSensitiveKeywords {
 			kw := strings.ToLower(keyword)
 			if strings.Contains(attrName, kw) || strings.Contains(attrValue, kw) {

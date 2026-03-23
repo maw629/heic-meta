@@ -25,7 +25,7 @@ func NewIdatWriter() *IdatWriter {
 func (w *IdatWriter) WriteItemData(itemID uint32, data []byte) error {
 	// Record offset before writing
 	w.itemOffset[itemID] = uint64(w.buffer.Len())
-	
+
 	// Write data
 	_, err := w.buffer.Write(data)
 	return err
@@ -56,19 +56,19 @@ func BuildFilteredIdat(
 	locations []ItemLocation,
 	modifications map[uint32]ItemModification,
 ) ([]byte, map[uint32]uint64, error) {
-	
+
 	writer := NewIdatWriter()
-	
+
 	// Process each item in order
 	for _, item := range items {
 		// Get modification for this item
 		mod, hasMod := modifications[item.ItemID]
-		
+
 		// If item should be removed, skip it
 		if hasMod && mod.Action == RemoveItem {
 			continue
 		}
-		
+
 		// Get item location
 		var itemLoc *ItemLocation
 		for i := range locations {
@@ -77,15 +77,15 @@ func BuildFilteredIdat(
 				break
 			}
 		}
-		
+
 		if itemLoc == nil {
 			// No location for this item, skip
 			continue
 		}
-		
+
 		// Determine what data to write
 		var dataToWrite []byte
-		
+
 		if hasMod && mod.Action == ModifyItem {
 			// Use filtered data
 			dataToWrite = mod.FilteredData
@@ -97,13 +97,13 @@ func BuildFilteredIdat(
 			}
 			dataToWrite = originalData
 		}
-		
+
 		// Write to idat buffer
 		if err := writer.WriteItemData(item.ItemID, dataToWrite); err != nil {
 			return nil, nil, fmt.Errorf("failed to write item %d: %w", item.ItemID, err)
 		}
 	}
-	
+
 	return writer.Bytes(), writer.GetOffsets(), nil
 }
 
@@ -114,13 +114,13 @@ func ReadBoxTree(r io.ReadSeeker, node *BoxNode) ([]byte, error) {
 	if _, err := r.Seek(int64(node.Offset), io.SeekStart); err != nil {
 		return nil, err
 	}
-	
+
 	// Read entire box including header
 	boxData := make([]byte, node.Size)
 	if _, err := io.ReadFull(r, boxData); err != nil {
 		return nil, err
 	}
-	
+
 	return boxData, nil
 }
 
@@ -143,7 +143,7 @@ func WriteBoxHeader(w io.Writer, boxType string, size uint64) error {
 			return err
 		}
 	}
-	
+
 	// Type (4 bytes)
 	typeBytes := []byte(boxType)
 	if len(typeBytes) != 4 {
@@ -152,7 +152,7 @@ func WriteBoxHeader(w io.Writer, boxType string, size uint64) error {
 	if _, err := w.Write(typeBytes); err != nil {
 		return err
 	}
-	
+
 	// Extended size if needed
 	if size > 0xFFFFFFFF {
 		extSizeBytes := []byte{
@@ -169,7 +169,7 @@ func WriteBoxHeader(w io.Writer, boxType string, size uint64) error {
 			return err
 		}
 	}
-	
+
 	return nil
 }
 
@@ -179,12 +179,12 @@ func CopyBoxToWriter(r io.ReadSeeker, w io.Writer, node *BoxNode) error {
 	if _, err := r.Seek(int64(node.Offset), io.SeekStart); err != nil {
 		return err
 	}
-	
+
 	// Copy entire box
 	if _, err := io.CopyN(w, r, int64(node.Size)); err != nil {
 		return err
 	}
-	
+
 	return nil
 }
 
@@ -193,28 +193,28 @@ func FindBoxInTree(root *BoxNode, boxType string) *BoxNode {
 	if root.TypeString() == boxType {
 		return root
 	}
-	
+
 	for _, child := range root.Children {
 		if found := FindBoxInTree(child, boxType); found != nil {
 			return found
 		}
 	}
-	
+
 	return nil
 }
 
 // FindAllBoxesInTree finds all boxes of a given type.
 func FindAllBoxesInTree(root *BoxNode, boxType string) []*BoxNode {
 	var result []*BoxNode
-	
+
 	if root.TypeString() == boxType {
 		result = append(result, root)
 	}
-	
+
 	for _, child := range root.Children {
 		result = append(result, FindAllBoxesInTree(child, boxType)...)
 	}
-	
+
 	return result
 }
 

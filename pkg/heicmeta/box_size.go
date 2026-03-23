@@ -29,37 +29,37 @@ func (c *BoxSizeCalculator) CalculateSize(node *BoxNode) uint64 {
 	if overrideSize, exists := c.sizeOverrides[node]; exists {
 		return overrideSize
 	}
-	
+
 	// If box has no children, return original size (leaf box)
 	if len(node.Children) == 0 {
 		return node.Size
 	}
-	
+
 	// Calculate size of all children
 	var childrenSize uint64
 	for _, child := range node.Children {
 		childrenSize += c.CalculateSize(child)
 	}
-	
+
 	// Add header size
 	// Header is: size(4) + type(4) = 8 bytes
 	// Or: size(4) + type(4) + extended_size(8) = 16 bytes if size > 4GB
 	// For meta and iref, add version+flags (4 bytes) after type
-	
+
 	headerSize := node.HeaderSize
 	if headerSize == 0 {
 		// Estimate: most boxes have 8-byte header
 		headerSize = 8
 	}
-	
+
 	// For FullBox containers, add version+flags to payload
 	totalPayload := childrenSize
 	if isFullBoxContainerType(node.Type) {
 		totalPayload += 4 // version(1) + flags(3)
 	}
-	
+
 	totalSize := headerSize + totalPayload
-	
+
 	return totalSize
 }
 
@@ -77,41 +77,41 @@ func (c *BoxSizeCalculator) recalculateRecursive(node *BoxNode, result map[*BoxN
 		result[node] = overrideSize
 		return overrideSize
 	}
-	
+
 	// If no children, use original size
 	if len(node.Children) == 0 {
 		result[node] = node.Size
 		return node.Size
 	}
-	
+
 	// Calculate children first (bottom-up)
 	var childrenSize uint64
 	for _, child := range node.Children {
 		childrenSize += c.recalculateRecursive(child, result)
 	}
-	
+
 	// Calculate this box's size
 	headerSize := node.HeaderSize
 	if headerSize == 0 {
 		headerSize = 8 // Default
 	}
-	
+
 	// For FullBox containers, add version+flags to payload
 	totalPayload := childrenSize
 	if isFullBoxContainerType(node.Type) {
 		totalPayload += 4 // version(1) + flags(3)
 	}
-	
+
 	totalSize := headerSize + totalPayload
 	result[node] = totalSize
-	
+
 	return totalSize
 }
 
 // BoxTreeModifier handles modifying a box tree with new sizes and content.
 type BoxTreeModifier struct {
-	calculator    *BoxSizeCalculator
-	replacements  map[*BoxNode][]byte // Box -> new payload
+	calculator   *BoxSizeCalculator
+	replacements map[*BoxNode][]byte // Box -> new payload
 }
 
 // NewBoxTreeModifier creates a new tree modifier.
@@ -125,14 +125,14 @@ func NewBoxTreeModifier() *BoxTreeModifier {
 // ReplaceBox marks a box to be replaced with new content.
 func (m *BoxTreeModifier) ReplaceBox(node *BoxNode, newPayload []byte) {
 	m.replacements[node] = newPayload
-	
+
 	// Calculate new size: header + payload
 	headerSize := node.HeaderSize
 	if headerSize == 0 {
 		headerSize = 8
 	}
 	newSize := headerSize + uint64(len(newPayload))
-	
+
 	m.calculator.SetSize(node, newSize)
 }
 
@@ -158,7 +158,7 @@ func ValidateBoxSize(boxType string, size uint64) error {
 	if size < 8 {
 		return fmt.Errorf("box size too small: %d (must be at least 8)", size)
 	}
-	
+
 	// Header size check
 	if size > 0xFFFFFFFF {
 		// Would need extended size, header should be 16
@@ -166,7 +166,7 @@ func ValidateBoxSize(boxType string, size uint64) error {
 			return fmt.Errorf("extended size box too small: %d", size)
 		}
 	}
-	
+
 	// Type-specific checks
 	switch boxType {
 	case "ftyp":
@@ -180,21 +180,21 @@ func ValidateBoxSize(boxType string, size uint64) error {
 			return fmt.Errorf("meta box too small: %d", size)
 		}
 	}
-	
+
 	return nil
 }
 
 // EstimateBoxHeaderSize estimates the header size for a box.
 func EstimateBoxHeaderSize(payloadSize uint64, isFullBox bool) uint64 {
 	headerSize := uint64(8) // size(4) + type(4)
-	
+
 	if payloadSize+headerSize > 0xFFFFFFFF {
 		// Need extended size
 		headerSize = 16 // size(4) + type(4) + extended_size(8)
 	}
-	
+
 	// Note: FullBox version+flags (4 bytes) is part of payload, not header
-	
+
 	return headerSize
 }
 
@@ -208,16 +208,16 @@ func CalculateContainerSize(children []*BoxNode, childSizes map[*BoxNode]uint64,
 			childrenTotal += child.Size
 		}
 	}
-	
+
 	// Add version+flags for FullBox containers (part of payload)
 	payloadSize := childrenTotal
 	if isFullBox {
 		payloadSize += 4 // version(1) + flags(3)
 	}
-	
+
 	// Calculate header size
 	headerSize := EstimateBoxHeaderSize(payloadSize, isFullBox)
-	
+
 	return headerSize + payloadSize
 }
 
@@ -226,7 +226,7 @@ func UpdateBoxTreeSizes(root *BoxNode, newSizes map[*BoxNode]uint64) {
 	if newSize, exists := newSizes[root]; exists {
 		root.Size = newSize
 	}
-	
+
 	for _, child := range root.Children {
 		UpdateBoxTreeSizes(child, newSizes)
 	}

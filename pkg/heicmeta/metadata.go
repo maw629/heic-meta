@@ -139,7 +139,7 @@ func (h *HEICHandler) ExtractMetadata(path string) (Metadata, error) {
 
 func (h *HEICHandler) RemoveMetadata(inputPath, outputPath string, options Options) error {
 	// Step 4: Complete implementation with item-based metadata removal
-	
+
 	// Parse to understand structure
 	tree, err := ParseFile(inputPath)
 	if err != nil {
@@ -244,7 +244,7 @@ func (h *HEICHandler) RemoveMetadata(inputPath, outputPath string, options Optio
 
 	// Step 6: Set up box replacements and recalculate sizes
 	modifier := NewBoxTreeModifier()
-	
+
 	// Find and replace idat (search all root boxes)
 	var idatNode *BoxNode
 	for _, root := range tree.Root {
@@ -256,10 +256,10 @@ func (h *HEICHandler) RemoveMetadata(inputPath, outputPath string, options Optio
 	if idatNode != nil {
 		modifier.ReplaceBox(idatNode, newIdatPayload)
 	}
-	
+
 	// Replace iinf with updated item info
 	modifier.ReplaceBox(iinfNode, newIinfPayload)
-	
+
 	// Replace iloc with updated item locations
 	modifier.ReplaceBox(ilocNode, newIlocPayload)
 
@@ -271,7 +271,7 @@ func (h *HEICHandler) RemoveMetadata(inputPath, outputPath string, options Optio
 	if idatNode != nil {
 		modified[idatNode] = true
 	}
-	
+
 	// Find all ancestor boxes and recalculate their sizes
 	for _, root := range tree.Root {
 		modifier.RecalculateSizes(root)
@@ -387,29 +387,28 @@ func (h *HEICHandler) processMimeBox(box *BoxNode, inFile *os.File, outFile *os.
 	return h.writeBox(box.Type, filteredPayload, outFile)
 }
 
-
 func (h *HEICHandler) writeBox(boxType mp4.BoxType, payload []byte, outFile *os.File) error {
 	// Calculate size: 8 bytes header + payload length
 	size := uint32(8 + len(payload))
-	
+
 	// Write size
 	sizeBytes := make([]byte, 4)
 	binary.BigEndian.PutUint32(sizeBytes, size)
 	if _, err := outFile.Write(sizeBytes); err != nil {
 		return err
 	}
-	
+
 	// Write type
 	typeBytes := []byte(boxType.String())
 	if _, err := outFile.Write(typeBytes); err != nil {
 		return err
 	}
-	
+
 	// Write payload
 	if _, err := outFile.Write(payload); err != nil {
 		return err
 	}
-	
+
 	return nil
 }
 

@@ -22,13 +22,13 @@ func NewFileWriter(inputPath, outputPath string, modifier *BoxTreeModifier) (*Fi
 	if err != nil {
 		return nil, fmt.Errorf("failed to open input: %w", err)
 	}
-	
+
 	output, err := os.Create(outputPath)
 	if err != nil {
-		input.Close()
+		_ = input.Close() // Ignore error in error path
 		return nil, fmt.Errorf("failed to create output: %w", err)
 	}
-	
+
 	return &FileWriter{
 		input:    input,
 		output:   output,
@@ -46,7 +46,7 @@ func (w *FileWriter) Close() error {
 	if w.output != nil {
 		err2 = w.output.Close()
 	}
-	
+
 	if err1 != nil {
 		return err1
 	}
@@ -67,36 +67,36 @@ func (w *FileWriter) WriteTree(tree *BoxTree) error {
 			w.newSizes[node] = size
 		}
 	}
-	
+
 	// Write each root box
 	for _, root := range tree.Root {
 		if err := w.writeBox(root); err != nil {
 			return fmt.Errorf("failed to write box %s: %w", root.TypeString(), err)
 		}
 	}
-	
+
 	return nil
 }
 
 // writeBox writes a single box and its children.
 func (w *FileWriter) writeBox(node *BoxNode) error {
 	boxType := node.TypeString()
-	
+
 	// Special handling for mdat (pixel data - must copy unchanged)
 	if boxType == "mdat" {
 		return w.writeMdatBox(node)
 	}
-	
+
 	// Check if we have a replacement for this box
 	if replacement, exists := w.modifier.GetReplacement(node); exists {
 		return w.writeReplacedBox(node, replacement)
 	}
-	
+
 	// If box has children, write as container
 	if len(node.Children) > 0 {
 		return w.writeContainerBox(node)
 	}
-	
+
 	// Leaf box without replacement - copy as-is
 	return w.copyBoxAsIs(node)
 }
@@ -107,12 +107,12 @@ func (w *FileWriter) writeMdatBox(node *BoxNode) error {
 	if _, err := w.input.Seek(int64(node.Offset), io.SeekStart); err != nil {
 		return fmt.Errorf("failed to seek to mdat: %w", err)
 	}
-	
+
 	// Copy entire mdat box (header + data)
 	if _, err := io.CopyN(w.output, w.input, int64(node.Size)); err != nil {
 		return fmt.Errorf("failed to copy mdat: %w", err)
 	}
-	
+
 	w.mdatCopied = true
 	return nil
 }
@@ -129,20 +129,20 @@ func (w *FileWriter) writeReplacedBox(node *BoxNode, newPayload []byte) error {
 		}
 		newSize = headerSize + uint64(len(newPayload))
 	}
-	
+
 	// Write header
 	if err := w.writeBoxHeaderWithSize(node.TypeString(), newSize); err != nil {
 		return err
 	}
-	
+
 	// Note: If this is a FullBox (iinf, iloc), version+flags should be
 	// included in newPayload already (our rebuild functions include it)
-	
+
 	// Write new payload
 	if _, err := w.output.Write(newPayload); err != nil {
 		return fmt.Errorf("failed to write payload: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -154,12 +154,12 @@ func (w *FileWriter) writeContainerBox(node *BoxNode) error {
 		// This shouldn't happen if RecalculateSizes was called
 		return fmt.Errorf("no size calculated for container %s", node.TypeString())
 	}
-	
+
 	// Write header
 	if err := w.writeBoxHeaderWithSize(node.TypeString(), newSize); err != nil {
 		return err
 	}
-	
+
 	// Write version+flags if FullBox container
 	if isFullBoxContainerType(node.Type) {
 		// Read original version+flags from input
@@ -172,14 +172,14 @@ func (w *FileWriter) writeContainerBox(node *BoxNode) error {
 			return fmt.Errorf("failed to write version+flags: %w", err)
 		}
 	}
-	
+
 	// Write children
 	for _, child := range node.Children {
 		if err := w.writeBox(child); err != nil {
 			return err
 		}
 	}
-	
+
 	return nil
 }
 
@@ -189,12 +189,12 @@ func (w *FileWriter) copyBoxAsIs(node *BoxNode) error {
 	if _, err := w.input.Seek(int64(node.Offset), io.SeekStart); err != nil {
 		return fmt.Errorf("failed to seek: %w", err)
 	}
-	
+
 	// Copy entire box
 	if _, err := io.CopyN(w.output, w.input, int64(node.Size)); err != nil {
 		return fmt.Errorf("failed to copy box: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -205,24 +205,24 @@ func (w *FileWriter) writeBoxHeaderWithSize(boxType string, size uint64) error {
 	if len(typeBytes) != 4 {
 		return fmt.Errorf("invalid box type length: %d", len(typeBytes))
 	}
-	
+
 	// Check if we need extended size
 	if size > 0xFFFFFFFF {
 		// Extended size format:
 		// size = 1 (4 bytes)
 		// type (4 bytes)
 		// actual size (8 bytes)
-		binary.Write(w.output, binary.BigEndian, uint32(1))
-		w.output.Write(typeBytes)
-		binary.Write(w.output, binary.BigEndian, size)
+		_ = binary.Write(w.output, binary.BigEndian, uint32(1))
+		_, _ = w.output.Write(typeBytes)
+		_ = binary.Write(w.output, binary.BigEndian, size)
 	} else {
 		// Normal format:
 		// size (4 bytes)
 		// type (4 bytes)
-		binary.Write(w.output, binary.BigEndian, uint32(size))
-		w.output.Write(typeBytes)
+		_ = binary.Write(w.output, binary.BigEndian, uint32(size))
+		_, _ = w.output.Write(typeBytes)
 	}
-	
+
 	return nil
 }
 
@@ -233,13 +233,13 @@ func (w *FileWriter) readVersionFlags(node *BoxNode) ([]byte, error) {
 	if _, err := w.input.Seek(int64(payloadOffset), io.SeekStart); err != nil {
 		return nil, err
 	}
-	
+
 	// Read 4 bytes (version + flags)
 	versionFlags := make([]byte, 4)
 	if _, err := io.ReadFull(w.input, versionFlags); err != nil {
 		return nil, err
 	}
-	
+
 	return versionFlags, nil
 }
 
@@ -255,15 +255,15 @@ func WriteModifiedFile(inputPath, outputPath string, tree *BoxTree, modifier *Bo
 		return err
 	}
 	defer writer.Close()
-	
+
 	if err := writer.WriteTree(tree); err != nil {
 		return err
 	}
-	
+
 	// Verify mdat was copied
 	if !writer.GetMdatCopied() {
 		return fmt.Errorf("mdat not found or not copied")
 	}
-	
+
 	return nil
 }

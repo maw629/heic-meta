@@ -20,7 +20,7 @@ func TestRemoveMetadata_Integration(t *testing.T) {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 	outputPath := tmpOut.Name()
-	tmpOut.Close()
+	_ = tmpOut.Close()
 	defer os.Remove(outputPath)
 
 	t.Run("extract metadata before removal", func(t *testing.T) {
@@ -155,7 +155,7 @@ func TestRemoveMetadata_MdatPreservation(t *testing.T) {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
 	outputPath := tmpOut.Name()
-	tmpOut.Close()
+	_ = tmpOut.Close()
 	defer os.Remove(outputPath)
 
 	err = RemoveMetadata(testImage, outputPath, DefaultOptions)
@@ -221,15 +221,15 @@ func TestRemoveMetadata_NoMetadata(t *testing.T) {
 
 	// Write minimal structure: ftyp + mdat + meta (without metadata items)
 	// This is a synthetic file for testing edge cases
-	tmpIn.Write(buildMinimalHEIC())
-	tmpIn.Close()
+	_, _ = tmpIn.Write(buildMinimalHEIC())
+	_ = tmpIn.Close()
 
 	tmpOut, err := os.CreateTemp("", "heic-cleaned-*.heic")
 	if err != nil {
 		t.Fatalf("Failed to create temp output: %v", err)
 	}
 	outputPath := tmpOut.Name()
-	tmpOut.Close()
+	_ = tmpOut.Close()
 	defer os.Remove(outputPath)
 
 	// Should not error on files without metadata
@@ -281,7 +281,7 @@ func TestRemoveMetadata_Options(t *testing.T) {
 				t.Fatalf("Failed to create temp file: %v", err)
 			}
 			outputPath := tmpOut.Name()
-			tmpOut.Close()
+			_ = tmpOut.Close()
 			defer os.Remove(outputPath)
 
 			err = RemoveMetadata(testImage, outputPath, tt.options)

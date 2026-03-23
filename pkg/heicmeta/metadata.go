@@ -159,7 +159,7 @@ func (h *HEICHandler) RemoveMetadata(inputPath, outputPath string, options Optio
 		return fmt.Errorf("failed to create output: %w", err)
 	}
 	defer func() {
-		outFile.Close()
+		_ = outFile.Close()
 		// Remove output file if there was an error
 		if err != nil {
 			os.Remove(outputPath)
@@ -297,7 +297,7 @@ func (h *HEICHandler) removeMetadataDirectBoxes(tree *BoxTree, inFile *os.File, 
 	// Process boxes
 	for _, box := range tree.Root {
 		if err := h.copyBoxWithFilter(box, inFile, outFile, options); err != nil {
-			outFile.Close()
+			_ = outFile.Close()
 			os.Remove(outFile.Name())
 			return fmt.Errorf("failed to process: %w", err)
 		}

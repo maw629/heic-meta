@@ -22,7 +22,7 @@ func TestRemoveMetadata_E2E_MinimalFile(t *testing.T) {
 	if _, err := tmpIn.Write(heicData); err != nil {
 		t.Fatalf("Failed to write test file: %v", err)
 	}
-	tmpIn.Close()
+	_ = tmpIn.Close()
 
 	t.Logf("Created test file: %s (%d bytes)", inputPath, len(heicData))
 
@@ -90,7 +90,7 @@ func TestRemoveMetadata_E2E_MinimalFile(t *testing.T) {
 		t.Fatalf("Failed to create output file: %v", err)
 	}
 	outputPath := tmpOut.Name()
-	tmpOut.Close()
+	_ = tmpOut.Close()
 	defer os.Remove(outputPath)
 
 	t.Run("remove_metadata", func(t *testing.T) {
@@ -160,7 +160,7 @@ func TestRemoveMetadata_E2E_MinimalFile(t *testing.T) {
 			// Show first difference
 			for i := 0; i < len(origMdatData) && i < len(newMdatData); i++ {
 				if origMdatData[i] != newMdatData[i] {
-					t.Errorf("First difference at byte %d: original=0x%02x, output=0x%02x", 
+					t.Errorf("First difference at byte %d: original=0x%02x, output=0x%02x",
 						i, origMdatData[i], newMdatData[i])
 					break
 				}
@@ -207,15 +207,15 @@ func TestRemoveMetadata_E2E_WithDirectBoxes(t *testing.T) {
 
 	// Build HEIC with direct Exif box (legacy format)
 	heicData := buildHEICWithDirectExif(t)
-	tmpIn.Write(heicData)
-	tmpIn.Close()
+	_, _ = tmpIn.Write(heicData)
+	_ = tmpIn.Close()
 
 	tmpOut, err := os.CreateTemp("", "e2e-direct-cleaned-*.heic")
 	if err != nil {
 		t.Fatalf("Failed to create output file: %v", err)
 	}
 	outputPath := tmpOut.Name()
-	tmpOut.Close()
+	_ = tmpOut.Close()
 	defer os.Remove(outputPath)
 
 	t.Run("parse_and_remove", func(t *testing.T) {
@@ -317,7 +317,7 @@ func writeIinfBox(buf *bytes.Buffer, t *testing.T) {
 	buf.Write([]byte{0, 0, 0, 0}) // size placeholder
 	buf.Write([]byte{'i', 'i', 'n', 'f'})
 	buf.Write([]byte{0, 0, 0, 0}) // version=0, flags=0
-	buf.Write([]byte{0, 0}) // entry_count = 0 (no items initially)
+	buf.Write([]byte{0, 0})       // entry_count = 0 (no items initially)
 
 	// Update size
 	iinfEnd := buf.Len()
@@ -331,8 +331,8 @@ func writeIlocBox(buf *bytes.Buffer, t *testing.T) {
 		0x00, 0x00, 0x00, 0x10, // size = 16
 		'i', 'l', 'o', 'c', // type
 		0x00, 0x00, 0x00, 0x00, // version=0, flags=0
-		0x44, // offset_size=4, length_size=4
-		0x00, // base_offset_size=0, reserved=0
+		0x44,       // offset_size=4, length_size=4
+		0x00,       // base_offset_size=0, reserved=0
 		0x00, 0x00, // item_count = 0
 	}
 	buf.Write(iloc)
@@ -449,8 +449,8 @@ func TestBoxSizeCalculator_E2E(t *testing.T) {
 	defer os.Remove(tmpIn.Name())
 
 	heicData := buildCompleteMinimalHEIC(t)
-	tmpIn.Write(heicData)
-	tmpIn.Close()
+	_, _ = tmpIn.Write(heicData)
+	_ = tmpIn.Close()
 
 	tree, err := ParseFile(tmpIn.Name())
 	if err != nil {
